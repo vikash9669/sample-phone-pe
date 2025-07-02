@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import crypto from "crypto";
 import Base64 from "base-64";
 import axios from "axios";
+import qs from "qs";
 
 dotenv.config();
 const app = express();
@@ -16,8 +17,11 @@ const {
   PHONEPE_SALT_KEY,
   PHONEPE_SALT_INDEX,
   PHONEPE_CALLBACK_URL,
+  PHONEPE_MERCHANT_USER_ID,
 } = process.env;
 
+const PHONEPE_API_URL_AUTH =
+  "https://api.phonepe.com/apis/identity-manager/v1/oauth/token";
 const PHONEPE_API_URL = "https://api.phonepe.com/apis/pg/checkout/v2/pay";
 
 function generateTransactionId() {
@@ -39,18 +43,20 @@ app.post("/create-order", async (req, res) => {
       return res.status(400).json({ error: "Missing amount or user ID" });
     }
 
-    const transactionId = generateTransactionId();
+    const data = qs.stringify({
+      client_id: PHONEPE_MERCHANT_USER_ID,
+      client_version: "1",
+      client_secret: PHONEPE_SALT_INDEX,
+      grant_type: "client_credentials",
+    });
 
-    // const requestBody_old = {
-    //   merchantId: PHONEPE_MERCHANT_ID,
-    //   merchantTransactionId: transactionId,
-    //   merchantUserId,
-    //   amount: parseInt(amount),
-    //   callbackUrl: PHONEPE_CALLBACK_URL,
-    //   paymentInstrument: {
-    //     type: 'PAY_PAGE',
-    //   },
-    // };
+    const response = await axios.post(url, data, {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+    });
+
+    const transactionId = generateTransactionId();
 
     const requestBody = {
       merchantOrderId: transactionId,
@@ -79,7 +85,7 @@ app.post("/create-order", async (req, res) => {
     const headers = {
       "Content-Type": "application/json",
       Authorization:
-        "O-Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJpZGVudGl0eU1hbmFnZXIiLCJ2ZXJzaW9uIjoiNC4wIiwidGlkIjoiZTdhMGI2OGUtMjVjZS00MDc2LTliNGUtMWQ4MDlhMzEzZDdlIiwic2lkIjoiZTAxY2YwMzAtM2FlMS00Y2IxLWJlZDYtOTNjZjliNTQzZWE3IiwiaWF0IjoxNzUxMzgzMzg4LCJleHAiOjE3NTEzODY5ODh9.wLfM5bIg8aFiS6hg3zMy5Rwj8kU6_8LeB7sWNRAl-BEGOufxcLYGzEjhcQutMHq3YCZCta_EiTI7qDk9JGKG9A",
+        `O-Bearer ${response.data.access_token}`,
     };
 
     //	  console.log("Request paylod: ", JSON.stringify(JSON.parse(Buffer.from(payloadBase64).toString('utf8')), null, 2))
